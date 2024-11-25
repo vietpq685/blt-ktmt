@@ -2,7 +2,7 @@
 # lớp `Mr Tooth` (aka `Charlie Pham` (aka `Phạm Văn Sự`))
 
 ### Tiến độ
-- Có thể nói là đã xong phần front-end của giao diện ghi code
+- Có thể nói là đã xong phần front-end của giao diện ghi code (nếu xong sớm có thể chỉnh sửa lại một số chỗ chưa vừa ý)
 - Hoàn thành các chức năng mở file, ghi file, save file và có nút chức năng RUN code
 
 ### Còn lại
