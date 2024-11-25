@@ -84,6 +84,8 @@ class CLemu6808(tk.Tk):
         super().__init__()
         # Tên của cửa sổ
         self.title("CLemu6808")
+        # Icon app
+        self.iconbitmap("asm.ico")
 
         # Size của cửa sổ
         self.geometry("700x800")
