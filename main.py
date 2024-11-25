@@ -1,3 +1,4 @@
+import os
 import tkinter as tk
 from tkinter import filedialog, messagebox
 
@@ -8,30 +9,42 @@ fontStyle = "bold"
 fontOption = (fontName, fontSize, fontStyle)
 
 class CLemu6808(tk.Tk):
-    def open_file(self):
-        """Mở file từ hệ thống."""
-        file_path = filedialog.askopenfilename(filetypes=[("ASM Files", "*.asm"), ("All files", "*.*")])
-        if file_path:
-            with open(file_path, "r") as file:
-                content = file.read()
-            self.code_area.delete(1.0, "end")
-            self.code_area.insert("1.0", content)
-            self.update_line_numbers()
-
-    def save_file(self):
-        """Lưu nội dung mã vào file."""
-        file_path = filedialog.asksaveasfilename(defaultextension=".asm", filetypes=[("ASM Files", "*.asm"), ("All files", "*.*")])
-        if file_path:
+    def check_unsaved_changes(self):
+        """Kiểm tra thay đổi chưa lưu và hỏi người dùng có muốn lưu không."""
+        current_content = self.code_area.get("1.0", "end-1c")  # Lấy nội dung hiện tại
+        if self.current_file:  # Nếu có file đang mở
             try:
-                with open(file_path, "w") as file:
-                    content = self.code_area.get("1.0", "end-1c")
-                    file.write(content)
-                messagebox.showinfo("Save File", "File has been saved successfully.")
+                with open(self.current_file, "r") as file:
+                    saved_content = file.read()
+                if current_content == saved_content:
+                    return True  # Không có thay đổi
             except Exception as e:
-                messagebox.showerror("Error", f"Failed to save file: {str(e)}")
+                print(f"Error reading current file: {e}")
+        else:  # Nếu chưa có file được lưu
+            if not current_content.strip():  # Nội dung trống
+                return True
+
+        # Hiển thị thông báo nếu có thay đổi chưa lưu
+        response = messagebox.askyesnocancel("Unsaved Changes", "You have unsaved changes. Do you want to save before continuing?")
+        if response:  # Người dùng chọn Save
+            self.save_file()
+            return True
+        elif response is None:  # Người dùng chọn Cancel
+            return False
+        return True  # Người dùng chọn Don't Save
+
+    def new_file(self):
+        """Tạo file mới, nhắc nhở lưu file nếu cần."""
+        if not self.check_unsaved_changes():
+            return
+        self.code_area.delete(1.0, "end")
+        self.update_line_numbers()
+        self.current_file = None  # Reset đường dẫn file
 
     def open_file(self):
-        """Mở file từ hệ thống."""
+        """Mở file, nhắc nhở lưu file nếu cần."""
+        if not self.check_unsaved_changes():
+            return
         file_path = filedialog.askopenfilename(filetypes=[("ASM Files", "*.asm"), ("All files", "*.*")])
         if file_path:
             with open(file_path, "r") as file:
@@ -39,6 +52,25 @@ class CLemu6808(tk.Tk):
             self.code_area.delete(1.0, "end")
             self.code_area.insert("1.0", content)
             self.update_line_numbers()
+            self.current_file = file_path  # Lưu đường dẫn file đã mở
+
+    def save_file(self, event=None):
+        """Lưu nội dung mã vào file. Nếu có file đã mở, sẽ lưu lại vào file đó."""
+        if self.current_file:  # Nếu đã có file đang mở
+            file_path = self.current_file
+        else:
+            # Nếu chưa có file, yêu cầu người dùng chọn thư mục và lưu file
+            file_path = filedialog.asksaveasfilename(defaultextension=".asm", filetypes=[("ASM Files", "*.asm")])
+            if not file_path:
+                return
+        try:
+            with open(file_path, "w") as file:
+                content = self.code_area.get("1.0", "end-1c")
+                file.write(content)
+            self.current_file = file_path  # Lưu đường dẫn file đã lưu
+            messagebox.showinfo("Save File", f"File has been saved as {os.path.basename(file_path)}.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save file: {str(e)}")
 
     def run_code(self):
         """Chạy code (ở đây ta chỉ in nội dung code, nhưng có thể thêm logic chạy code)."""
@@ -52,6 +84,10 @@ class CLemu6808(tk.Tk):
         # Tạo các nút trên cùng: Open File, Run Code.
         top_frame = tk.Frame(self)
         top_frame.pack(side="top", fill="x")
+        
+        # Nút "Open" (Mở file)
+        open_button = tk.Button(top_frame, text="New File", command=self.new_file, font = (fontName, 12, fontStyle))
+        open_button.pack(side="left")
 
         # Nút "Open" (Mở file)
         open_button = tk.Button(top_frame, text="Open File", command=self.open_file, font = (fontName, 12, fontStyle))
@@ -92,6 +128,8 @@ class CLemu6808(tk.Tk):
         # Cho phép resize cửa sổ
         self.resizable(width=True, height=True)
 
+        # Biến để lưu đường dẫn file hiện tại
+        self.current_file = None
 
         # Vùng trên cùng chứa các nút chức năng
         self.create_top_buttons()
