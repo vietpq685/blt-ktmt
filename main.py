@@ -214,7 +214,8 @@ class run(tk.Tk):
         # Thêm dữ liệu mẫu vào bảng thanh ghi
         registers_data = [("AH", "0x0000"), ("AL", "0x0000"), ("BH", "0x0000"), ("BL", "0x0000"), ("CH", "0x0000"), ("CL", "0x0000"), ("DH", "0x0000"), ("DL", "0x0000"), ("CS", "0x0000"), ("IP", "0x0000"), ("SS", "0x0000"), ("SP", "0x0000"), ("BP", "0x0000"), ("SI", "0x0000"), ("DI", "0x0000"), ("DS", "0x0000"), ("ES", "0x0000")]
         for reg, val in registers_data:
-            self.tree_registers.insert("", "end", values=(reg, val))
+            print_reg = f"{reg}: {val}"
+            self.tree_registers.insert("", "end", values=(print_reg,))
 
         # Thêm code vào khu vực code
         # self.code_text.insert()
@@ -222,7 +223,8 @@ class run(tk.Tk):
         # Thêm dữ liệu mẫu vào bảng cờ
         flags_data = [("CF", "0"), ("ZF", "0"), ("SF", "0"), ("OF", "0"), ("PF", "0"), ("AF", "0"), ("IF", "0"), ("DF", "0")]
         for flag, val in flags_data:
-            self.tree_flags.insert("", "end", values=(flag, val))
+            print_flag = f"{flag}: {val}"
+            self.tree_flags.insert("", "end", values=(print_flag,))
 
 
         # ======== Xử lý sự kiện ======== #
