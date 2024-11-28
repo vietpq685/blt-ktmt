@@ -18,32 +18,31 @@ class run(tk.Toplevel):
     def display_register(self):
         # Cập nhật giá trị các thanh ghi trong giao diện
         for reg, widgets in self.register_labels.items():
-            if isinstance(widgets, dict):  # AX, BX, CX, DX
-                h_val = self.cpu.registers[reg]['H']
-                l_val = self.cpu.registers[reg]['L']
+            if isinstance(widgets, dict):  # Các thanh ghi 16-bit (AX, BX, CX, DX)
+                h_val = getattr(self.cpu.registers, reg[0] + 'H')  # Lấy giá trị phần cao (H)
+                l_val = getattr(self.cpu.registers, reg[0] + 'L')  # Lấy giá trị phần thấp (L)
                 widgets['H'].delete(0, tk.END)
                 widgets['L'].delete(0, tk.END)
-                widgets['H'].insert(0, f"{h_val:02X}")  # Hiển thị giá trị theo định dạng hex
+                widgets['H'].insert(0, f"{h_val:02X}")
                 widgets['L'].insert(0, f"{l_val:02X}")
-            else:  # Các thanh ghi khác (CS, IP, SS, SP,...)
-                reg_val = self.cpu.registers[reg]
+            else:  # Các thanh ghi bổ sung (CS, IP, SS, ...)
+                reg_val = getattr(self.cpu.registers, reg)  # Lấy giá trị thanh ghi
                 widgets.delete(0, tk.END)
-                widgets.insert(0, f"{reg_val:04X}")  # Hiển thị theo định dạng hex
+                widgets.insert(0, f"{reg_val:04X}")
 
     def display_flag(self):
         global flags
-        # Cập nhật giá trị các thanh ghi trong giao diện
+        # In giá trị các flag
         for flg, widgets in self.flag_labels.items():
             flag_val = flags[flg]
             widgets.delete(0, tk.END)
-            widgets.insert(0, f"{flag_val:1b}")  # Hiển thị theo định dạng hex
+            widgets.insert(0, str(flag_val))
 
     def run_asm_code(self, content):
         line_code = content.strip()
         result = self.cpu.execute(line_code)
 
         return result
-
 
     def single_step(self):
         """Đọc thêm một hoặc nhiều dòng từ file và hiển thị."""
@@ -56,7 +55,7 @@ class run(tk.Toplevel):
                     stripped_line = next_line.strip()
                     if (
                         stripped_line and  # Dòng trống
-                        not stripped_line.startswith((';', '.', 'main', 'end', 'MOV AH 4Ch', 'INT 21h')) and
+                        not stripped_line.startswith((';', '.', 'main', 'end', 'INT 21h')) and
                         not stripped_line.endswith((':', 'main'))  # Kết thúc bằng các từ không mong muốn
                     ):
                         end = self.run_asm_code(next_line)
@@ -114,9 +113,13 @@ class run(tk.Toplevel):
         text = self.cpu.get_text(numb)
         self.screen_console["text"] = "\n" + text + "\n"
 
-    def close_window(self, numb):
-        msg = messagebox.showinfo("Close", self.cpu.get_text(numb))
-        if (msg):
+    def close_window(self, numb = None):
+        if numb != None:
+            msg = messagebox.showinfo("Close", self.cpu.get_text(numb))
+            if (msg):
+                self.destroy()
+                self.parent.deiconify()
+        else:
             self.destroy()
             self.parent.deiconify()
 
@@ -136,26 +139,49 @@ class run(tk.Toplevel):
         self.register_label = tk.Label(self.register_frame, text="Registers", font=("Arial", 16))
         self.register_label.grid(row=0, column=0, columnspan=3)
 
-        # Các thanh ghi AX, BX, CX, DX với phần cao và thấp
+        # In ra các thanh ghi
         self.register_labels = {}
         row_index = 1
         for reg in ['AX', 'BX', 'CX', 'DX']:
             tk.Label(self.register_frame, text=reg).grid(row=row_index, column=0)
+
+            # Tạo Entry cho phần cao (H) và thấp (L)
             h_label = tk.Entry(self.register_frame, width=5)
-            l_label = tk.Entry(self.register_frame, width=5)
             h_label.grid(row=row_index, column=1)
+            l_label = tk.Entry(self.register_frame, width=5)
             l_label.grid(row=row_index, column=2)
+
+            # Lấy giá trị từ lớp Register để hiển thị
+            h_label.insert(0, getattr(self.cpu.registers, reg[0] + 'H'))
+            l_label.insert(0, getattr(self.cpu.registers, reg[0] + 'L'))
+
+            # Liên kết Entry với các thuộc tính của lớp Register
+            h_label.bind("<FocusOut>", lambda e, r=reg: self.update_register_hl(r, 'H', e.widget.get()))
+            l_label.bind("<FocusOut>", lambda e, r=reg: self.update_register_hl(r, 'L', e.widget.get()))
+
+            # Lưu tham chiếu Entry
             self.register_labels[reg] = {'H': h_label, 'L': l_label}
             row_index += 1
 
-        # Các thanh ghi bổ sung
+        # Hiển thị các thanh ghi bổ sung 16-bit
         self.additional_registers = ['CS', 'IP', 'SS', 'SP', 'BP', 'SI', 'DI', 'DS', 'ES']
         for reg in self.additional_registers:
             tk.Label(self.register_frame, text=reg).grid(row=row_index, column=0)
+
+            # Tạo Entry
             reg_entry = tk.Entry(self.register_frame, width=10)
             reg_entry.grid(row=row_index, column=1, columnspan=2)
+
+            # Lấy giá trị từ lớp Register để hiển thị
+            reg_entry.insert(0, getattr(self.cpu.registers, reg))
+
+            # Liên kết Entry với thuộc tính của lớp Register
+            reg_entry.bind("<FocusOut>", lambda e, r=reg: self.update_register_value(r, e.widget.get()))
+
+            # Lưu tham chiếu Entry
             self.register_labels[reg] = reg_entry
             row_index += 1
+
 
 
         # Khung ở giữa: Hiển thị code ASM
@@ -184,8 +210,8 @@ class run(tk.Toplevel):
 
         self.flag_labels = {}
         row_index = 1
-        self.additional_flags = ['CF', 'ZF', 'SF', 'OF', 'PF', 'AF', 'IF', 'DF']
-        for flag in self.additional_flags:
+        self.lst_flags = ['CF', 'ZF', 'SF', 'OF', 'PF', 'AF', 'IF', 'DF']
+        for flag in self.lst_flags:
             tk.Label(self.flag_frame, text=flag).grid(row=row_index, column=0)
             flag_entry = tk.Entry(self.flag_frame, width=5)
             flag_entry.grid(row=row_index, column=1, columnspan=2)
