@@ -1,4 +1,5 @@
 import os
+import sys
 import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog, messagebox
@@ -13,6 +14,12 @@ fontOption = (fontName, fontSize, fontStyle)
 flags = {'CF': 0, 'ZF': 0, 'SF': 0, 'OF': 0, 'PF': 1, 'AF': 0, 'IF': 0, 'DF': 0}
 
 current_file_save = None    # Biến lưu địa chỉ đường dẫn file khi đã lưu để xử lý trong các hàm khác
+
+if getattr(sys, 'frozen', False):
+    app_path = sys._MEIPASS
+else:
+    app_path = os.path.dirname(__file__)
+icon_path = os.path.join(app_path, 'asm.ico')
 
 class run(tk.Toplevel):
     def display_register(self):
@@ -234,7 +241,8 @@ class run(tk.Toplevel):
         # Tên của cửa sổ
         self.title("RUN")
         # Icon app
-        self.iconbitmap("asm.ico")
+        global icon_path
+        self.iconbitmap(icon_path)
 
         # Khi đóng cửa sổ con, hiển thị lại cửa sổ chính
         self.protocol("WM_DELETE_WINDOW", self.close_window)
@@ -434,7 +442,8 @@ class CLemu6808(tk.Tk):
         # Tên của cửa sổ
         self.title("CLemu6808")
         # Icon app
-        self.iconbitmap("asm.ico")
+        global icon_path
+        self.iconbitmap(icon_path)
 
         # Size của cửa sổ
         self.geometry("700x800")
