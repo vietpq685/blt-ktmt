@@ -2,7 +2,7 @@ import os
 import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog, messagebox
-# import command
+import CPU
 
 # Settings font
 fontSize = 20
@@ -10,106 +10,52 @@ fontName = "Courier"
 fontStyle = "bold"
 fontOption = (fontName, fontSize, fontStyle)
 
+flags = {'CF': 0, 'ZF': 0, 'SF': 0, 'OF': 0, 'PF': 1, 'AF': 0, 'IF': 0, 'DF': 0}
+
 current_file_save = None    # Biến lưu địa chỉ đường dẫn file khi đã lưu để xử lý trong các hàm khác
 
-class Register:
-    def __init__(self, name):
-        self.name = name
-        self._value = 0x0000  # Giá trị 16-bit mặc định là 0
-
-    @property
-    def value(self):
-        return self._value
-
-    @value.setter
-    def value(self, val):
-        if 0 <= val <= 0xFFFF:  # Đảm bảo giá trị trong phạm vi 16-bit
-            self._value = val
-        else:
-            raise ValueError(f"Value {val} out of bounds for register {self.name}")
-
-    @property
-    def high(self):
-        return (self._value >> 8) & 0xFF  # Byte cao (8-bit)
-
-    @high.setter
-    def high(self, val):
-        if 0 <= val <= 0xFF:  # Đảm bảo giá trị trong phạm vi 8-bit
-            self._value = (self._value & 0x00FF) | (val << 8)
-        else:
-            raise ValueError(f"High byte {val} out of bounds for register {self.name}")
-
-    @property
-    def low(self):
-        return self._value & 0xFF  # Byte thấp (8-bit)
-
-    @low.setter
-    def low(self, val):
-        if 0 <= val <= 0xFF:  # Đảm bảo giá trị trong phạm vi 8-bit
-            self._value = (self._value & 0xFF00) | val
-        else:
-            raise ValueError(f"Low byte {val} out of bounds for register {self.name}")
-
-class CPURegisters:
-    def __init__(self):
-        # Các thanh ghi chính
-        self.registers = {
-            "AX": Register("AX"),
-            "BX": Register("BX"),
-            "CX": Register("CX"),
-            "DX": Register("DX"),
-            "CS": Register("CS"),
-            "IP": Register("IP"),
-            "SS": Register("SS"),
-            "SP": Register("SP"),
-            "BP": Register("BP"),
-            "SI": Register("SI"),
-            "DI": Register("DI"),
-            "DS": Register("DS"),
-            "ES": Register("ES"),
-        }
-
-    def get(self, name):
-        if name in self.registers:
-            return self.registers[name].value
-        else:
-            raise KeyError(f"Register {name} does not exist.")
-
-    def set(self, name, value):
-        if name in self.registers:
-            self.registers[name].value = value
-        else:
-            raise KeyError(f"Register {name} does not exist.")
-
-    def get_high(self, name):
-        if name in self.registers and hasattr(self.registers[name], "high"):
-            return self.registers[name].high
-        else:
-            raise KeyError(f"Register {name} does not support high byte access.")
-
-    def set_high(self, name, value):
-        if name in self.registers and hasattr(self.registers[name], "high"):
-            self.registers[name].high = value
-        else:
-            raise KeyError(f"Register {name} does not support high byte access.")
-
-    def get_low(self, name):
-        if name in self.registers and hasattr(self.registers[name], "low"):
-            return self.registers[name].low
-        else:
-            raise KeyError(f"Register {name} does not support low byte access.")
-
-    def set_low(self, name, value):
-        if name in self.registers and hasattr(self.registers[name], "low"):
-            self.registers[name].low = value
-        else:
-            raise KeyError(f"Register {name} does not support low byte access.")
-
-    def print_registers(self):
-        for name, reg in self.registers.items():
-            print(f"{name}: {hex(reg.value)}")
-
 class run(tk.Tk):
+    def single_step(self):
+        """Đọc thêm một hoặc nhiều dòng từ file và hiển thị."""
+        if self.file:  # Kiểm tra xem file đã mở hay chưa
+            while True:
+                next_line = self.file.readline()
+                if next_line:
+                    self.code_text.insert("end", next_line)
+                    # Kiểm tra xem dòng có hợp lệ không, nếu dòng đã hợp lệ thì dừng vònd lặp
+                    stripped_line = next_line.strip()
+                    if (
+                        stripped_line and  # Dòng trống
+                        not stripped_line.startswith((';', '.', 'main', 'end', 'MOV AH 4Ch', 'INT 21h')) and
+                        not stripped_line.endswith((':', 'main'))  # Kết thúc bằng các từ không mong muốn
+                    ):
+                        self.run_instructions(next_line)
+                        break
+                else:
+                    self.file.close()
+                    self.file = None
+                    break
+
+    def run_all(self):
+        while self.file:  # Kiểm tra xem file đã mở hay chưa
+            while True:
+                next_line = self.file.readline()
+                if next_line:
+                    self.code_text.insert("end", next_line)
+                    # Kiểm tra xem dòng có hợp lệ không, nếu dòng đã hợp lệ thì dừng vònd lặp
+                    stripped_line = next_line.strip()
+                    if (
+                        stripped_line and  # Dòng trống
+                        not stripped_line.startswith((';', '.', 'main', 'end', 'MOV AH 4Ch', 'INT 21h')) and
+                        not stripped_line.endswith((':', 'main'))  # Kết thúc bằng các từ không mong muốn
+                    ):
+                        self.run_instructions(next_line)
+                        break
+                else:
+                    self.file.close()
+                    self.file = None
+                    break
+
     def create_top_buttons(self):
         # Tạo các nút trên cùng: Open File, Run Code.
         top_frame = tk.Frame(self)
@@ -123,6 +69,7 @@ class run(tk.Tk):
         single_step_button = tk.Button(
             top_frame,
             text = "Single Step",
+            command = self.single_step,
             font = (fontName, 10, fontStyle),
             fg = "green",
         )
@@ -132,10 +79,14 @@ class run(tk.Tk):
         run_all_button = tk.Button(
             top_frame,
             text = "Run All",
+            command = self.run_all,
             font = (fontName, 10, fontStyle),
             fg = "green",
         )
         run_all_button.pack(side="right", padx=110)
+
+    def print_to_console(self, text):
+        self.screen_console["text"] = "\n" + text + "\n"
 
     def create_main_screen(self):
         main_area = tk.Frame(self)
@@ -148,13 +99,32 @@ class run(tk.Tk):
         line1 = tk.Frame(main_area, width = 1, bg="gray")
         line1.pack(side="left", fill="both")
         # Bên trái: Thông số thanh ghi
-        label_registers = ttk.Label(frame_left, text="Registers", font=("Arial", 16))
-        label_registers.pack(anchor="n")
+        self.register_frame = tk.Frame(frame_left)
+        self.register_frame.grid(row=1, column=1, padx=10, pady=5)
+        self.register_label = tk.Label(self.register_frame, text="Registers", font=("Arial", 16))
+        self.register_label.grid(row=0, column=0, columnspan=3)
 
-        self.tree_registers = ttk.Treeview(frame_left, columns=("Value"), show="headings", height=10)
-        self.tree_registers.heading("Value", text="Value")
-        self.tree_registers.column("Value", width=100)
-        self.tree_registers.pack(fill="both", expand=True)
+        # Các thanh ghi AX, BX, CX, DX với phần cao và thấp
+        self.register_labels = {}
+        row_index = 1
+        for reg in ['AX', 'BX', 'CX', 'DX']:
+            tk.Label(self.register_frame, text=reg).grid(row=row_index, column=0)
+            h_label = tk.Entry(self.register_frame, width=5)
+            l_label = tk.Entry(self.register_frame, width=5)
+            h_label.grid(row=row_index, column=1)
+            l_label.grid(row=row_index, column=2)
+            self.register_labels[reg] = {'H': h_label, 'L': l_label}
+            row_index += 1
+
+        # Các thanh ghi bổ sung
+        self.additional_registers = ['CS', 'IP', 'SS', 'SP', 'BP', 'SI', 'DI', 'DS', 'ES']
+        for reg in self.additional_registers:
+            tk.Label(self.register_frame, text=reg).grid(row=row_index, column=0)
+            reg_entry = tk.Entry(self.register_frame, width=10)
+            reg_entry.grid(row=row_index, column=1, columnspan=2)
+            self.register_labels[reg] = reg_entry
+            row_index += 1
+
 
         # Khung ở giữa: Hiển thị code ASM
         frame_middle = tk.Frame(main_area)
@@ -164,7 +134,7 @@ class run(tk.Tk):
         label_code = ttk.Label(frame_middle, text="Code Here", font=("Arial", 16))
         label_code.pack(anchor="n")
 
-        self.code_text = tk.Text(frame_middle, wrap="none", width=53)
+        self.code_text = tk.Text(frame_middle, wrap="none", width=43, font = (fontName, 12, fontStyle))
         self.code_text.pack(side="left", fill="both", expand=True)
 
 
@@ -175,23 +145,64 @@ class run(tk.Tk):
         line2 = tk.Frame(main_area, width = 1, bg="gray")
         line2.pack(side="right", fill="both")
 
-        # Bên phải: Thông số cờ (Flags)
-        label_flags = ttk.Label(frame_right, text="Flags", font=("Arial", 16))
-        label_flags.pack(anchor="n")
+        self.flag_frame = tk.Frame(frame_right)
+        self.flag_frame.grid(row=1, column=1, padx=5, pady=5)
+        self.flag_label = tk.Label(self.flag_frame, text="Flags", font=("Arial", 16))
+        self.flag_label.grid(row=0, column=0, columnspan=3)
 
-        self.tree_flags = ttk.Treeview(frame_right, columns=("Value"), show="headings", height=10)
-        self.tree_flags.heading("Value", text="Value")
-        self.tree_flags.column("Value", width=60)
-        self.tree_flags.pack(fill="both", expand=True)
+        self.flag_labels = {}
+        row_index = 1
+        self.additional_flags = ['CF', 'ZF', 'SF', 'OF', 'PF', 'AF', 'IF', 'DF']
+        for flag in self.additional_flags:
+            tk.Label(self.flag_frame, text=flag).grid(row=row_index, column=0)
+            flag_entry = tk.Entry(self.flag_frame, width=5)
+            flag_entry.grid(row=row_index, column=1, columnspan=2)
+            self.flag_labels[flag] = flag_entry
+            row_index += 1
 
 
         # Khung phía dưới: Màn hình đen (Screen)
-        frame_bottom = tk.Frame(self, height = 120, bg="black")
+        frame_bottom = tk.Frame(self, height = 100, bg="black")
         frame_bottom.pack(side="bottom", fill="both")
 
         # Phía dưới: Màn hình đen
-        self.screen_label = tk.Label(frame_bottom, text="", font=("Consolas", 12), bg="black", fg="white")
-        self.screen_label.pack(fill="both", expand=True)
+        self.screen_console = tk.Label(frame_bottom, text="", font=("Consolas", 10), bg="black", fg="white", anchor = 'w')
+        self.screen_console.pack(fill="both", expand=True)
+    
+    def update_register_display(self):
+        # Cập nhật giá trị các thanh ghi trong giao diện
+        for reg, widgets in self.register_labels.items():
+            if isinstance(widgets, dict):  # AX, BX, CX, DX
+                h_val = self.cpu.registers[reg]['H']
+                l_val = self.cpu.registers[reg]['L']
+                widgets['H'].delete(0, tk.END)
+                widgets['L'].delete(0, tk.END)
+                widgets['H'].insert(0, f"{h_val:02X}")  # Hiển thị giá trị theo định dạng hex
+                widgets['L'].insert(0, f"{l_val:02X}")
+            else:  # Các thanh ghi khác (CS, IP, SS, SP,...)
+                reg_val = self.cpu.registers[reg]
+                widgets.delete(0, tk.END)
+                widgets.insert(0, f"{reg_val:04X}")  # Hiển thị theo định dạng hex
+
+    def update_flag_display(self):
+        global flags
+        # Cập nhật giá trị các thanh ghi trong giao diện
+        for flg, widgets in self.flag_labels.items():
+            flag_val = flags[flg]
+            widgets.delete(0, tk.END)
+            widgets.insert(0, f"{flag_val:1b}")  # Hiển thị theo định dạng hex
+
+    def run_instructions(self, content):
+        # Lấy và thực thi lệnh
+        instruction = content.strip()  # Loại bỏ ký tự xuống dòng
+        result = self.cpu.execute_instruction(instruction)
+
+        # Hiển thị kết quả
+        self.print_to_console(result)
+
+        # Cập nhật thanh ghi
+        self.update_register_display()
+
 
     def __init__(self):
         super().__init__()
@@ -201,39 +212,31 @@ class run(tk.Tk):
         self.iconbitmap("asm.ico")
 
         # Size của cửa sổ
-        self.geometry("600x700")
+        # self.geometry("600x700")
         # Không cho phép resize cửa sổ
-        self.resizable(width = False, height = False)
+        # self.resizable(width = False, height = False)
+
+        global current_file_save
+        self.cpu = CPU
 
         # Định nghĩa khung bố cục
         # Vùng trên cùng chứa các nút chức năng
         self.create_top_buttons()
 
+        # Tạo vùng chứa các thanh ghi, code, flag và console
         self.create_main_screen()
 
-        # Thêm dữ liệu mẫu vào bảng thanh ghi
-        registers_data = [("AH", "0x0000"), ("AL", "0x0000"), ("BH", "0x0000"), ("BL", "0x0000"), ("CH", "0x0000"), ("CL", "0x0000"), ("DH", "0x0000"), ("DL", "0x0000"), ("CS", "0x0000"), ("IP", "0x0000"), ("SS", "0x0000"), ("SP", "0x0000"), ("BP", "0x0000"), ("SI", "0x0000"), ("DI", "0x0000"), ("DS", "0x0000"), ("ES", "0x0000")]
-        for reg, val in registers_data:
-            print_reg = f"{reg}: {val}"
-            self.tree_registers.insert("", "end", values=(print_reg,))
 
         # Thêm code vào khu vực code
-        # self.code_text.insert()
+        self.file =  open(current_file_save, "r")
+        self.code_text.delete(1.0, "end")
 
-        # Thêm dữ liệu mẫu vào bảng cờ
-        flags_data = [("CF", "0"), ("ZF", "0"), ("SF", "0"), ("OF", "0"), ("PF", "0"), ("AF", "0"), ("IF", "0"), ("DF", "0")]
-        for flag, val in flags_data:
-            print_flag = f"{flag}: {val}"
-            self.tree_flags.insert("", "end", values=(print_flag,))
+        # In giá trị các thanh ghi
+        self.update_register_display()
+        self.update_flag_display()
 
 
-        # ======== Xử lý sự kiện ======== #
-
-        # Hàm hiển thị thông báo trên màn hình đen
-        def append_to_screen(text):
-            current_text = self.screen_label["text"]
-            self.screen_label["text"] = current_text + "\n" + text
-
+        self.print_to_console("Welcome!!!")
 
 
 class CLemu6808(tk.Tk):
