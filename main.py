@@ -14,7 +14,37 @@ flags = {'CF': 0, 'ZF': 0, 'SF': 0, 'OF': 0, 'PF': 1, 'AF': 0, 'IF': 0, 'DF': 0}
 
 current_file_save = None    # Biến lưu địa chỉ đường dẫn file khi đã lưu để xử lý trong các hàm khác
 
-class run(tk.Tk):
+class run(tk.Toplevel):
+    def display_register(self):
+        # Cập nhật giá trị các thanh ghi trong giao diện
+        for reg, widgets in self.register_labels.items():
+            if isinstance(widgets, dict):  # AX, BX, CX, DX
+                h_val = self.cpu.registers[reg]['H']
+                l_val = self.cpu.registers[reg]['L']
+                widgets['H'].delete(0, tk.END)
+                widgets['L'].delete(0, tk.END)
+                widgets['H'].insert(0, f"{h_val:02X}")  # Hiển thị giá trị theo định dạng hex
+                widgets['L'].insert(0, f"{l_val:02X}")
+            else:  # Các thanh ghi khác (CS, IP, SS, SP,...)
+                reg_val = self.cpu.registers[reg]
+                widgets.delete(0, tk.END)
+                widgets.insert(0, f"{reg_val:04X}")  # Hiển thị theo định dạng hex
+
+    def display_flag(self):
+        global flags
+        # Cập nhật giá trị các thanh ghi trong giao diện
+        for flg, widgets in self.flag_labels.items():
+            flag_val = flags[flg]
+            widgets.delete(0, tk.END)
+            widgets.insert(0, f"{flag_val:1b}")  # Hiển thị theo định dạng hex
+
+    def run_asm_code(self, content):
+        line_code = content.strip()
+        result = self.cpu.execute(line_code)
+
+        return result
+
+
     def single_step(self):
         """Đọc thêm một hoặc nhiều dòng từ file và hiển thị."""
         if self.file:  # Kiểm tra xem file đã mở hay chưa
@@ -29,35 +59,30 @@ class run(tk.Tk):
                         not stripped_line.startswith((';', '.', 'main', 'end', 'MOV AH 4Ch', 'INT 21h')) and
                         not stripped_line.endswith((':', 'main'))  # Kết thúc bằng các từ không mong muốn
                     ):
-                        self.run_instructions(next_line)
-                        break
+                        end = self.run_asm_code(next_line)
+                        if end != 0:
+                            self.file.close()
+                            self.file = None
+                            self.close_window(end)
+                            break
+                        else:
+                            # Hiển thị kết quả
+                            self.print_to_console(end)
+                            # Cập nhật thanh ghi
+                            self.display_register()
+                            break
                 else:
+                    self.print_to_console(5)
                     self.file.close()
                     self.file = None
                     break
 
-    def run_all(self):
+    def run_all(self): # Chạy nhiều single_step liền nhau
         while self.file:  # Kiểm tra xem file đã mở hay chưa
-            while True:
-                next_line = self.file.readline()
-                if next_line:
-                    self.code_text.insert("end", next_line)
-                    # Kiểm tra xem dòng có hợp lệ không, nếu dòng đã hợp lệ thì dừng vònd lặp
-                    stripped_line = next_line.strip()
-                    if (
-                        stripped_line and  # Dòng trống
-                        not stripped_line.startswith((';', '.', 'main', 'end', 'MOV AH 4Ch', 'INT 21h')) and
-                        not stripped_line.endswith((':', 'main'))  # Kết thúc bằng các từ không mong muốn
-                    ):
-                        self.run_instructions(next_line)
-                        break
-                else:
-                    self.file.close()
-                    self.file = None
-                    break
+            self.single_step()
 
     def create_top_buttons(self):
-        # Tạo các nút trên cùng: Open File, Run Code.
+        # Tạo các nút trên cùng: Run Single (chạy từng dòng lệnh), Run All (Chạy tất cả các dòng lệnh còn lại).
         top_frame = tk.Frame(self)
         top_frame.pack(side = "top", fill = "x")
 
@@ -85,10 +110,17 @@ class run(tk.Tk):
         )
         run_all_button.pack(side="right", padx=110)
 
-    def print_to_console(self, text):
+    def print_to_console(self, numb): # In thông tin ra màn hình đen
+        text = self.cpu.get_text(numb)
         self.screen_console["text"] = "\n" + text + "\n"
 
-    def create_main_screen(self):
+    def close_window(self, numb):
+        msg = messagebox.showinfo("Close", self.cpu.get_text(numb))
+        if (msg):
+            self.destroy()
+            self.parent.deiconify()
+
+    def create_main_screen(self): # Tạo phần hoạn động chính
         main_area = tk.Frame(self)
         main_area.pack(side = "top", fill = "both", expand = True)
 
@@ -169,47 +201,17 @@ class run(tk.Tk):
         self.screen_console = tk.Label(frame_bottom, text="", font=("Consolas", 10), bg="black", fg="white", anchor = 'w')
         self.screen_console.pack(fill="both", expand=True)
     
-    def update_register_display(self):
-        # Cập nhật giá trị các thanh ghi trong giao diện
-        for reg, widgets in self.register_labels.items():
-            if isinstance(widgets, dict):  # AX, BX, CX, DX
-                h_val = self.cpu.registers[reg]['H']
-                l_val = self.cpu.registers[reg]['L']
-                widgets['H'].delete(0, tk.END)
-                widgets['L'].delete(0, tk.END)
-                widgets['H'].insert(0, f"{h_val:02X}")  # Hiển thị giá trị theo định dạng hex
-                widgets['L'].insert(0, f"{l_val:02X}")
-            else:  # Các thanh ghi khác (CS, IP, SS, SP,...)
-                reg_val = self.cpu.registers[reg]
-                widgets.delete(0, tk.END)
-                widgets.insert(0, f"{reg_val:04X}")  # Hiển thị theo định dạng hex
 
-    def update_flag_display(self):
-        global flags
-        # Cập nhật giá trị các thanh ghi trong giao diện
-        for flg, widgets in self.flag_labels.items():
-            flag_val = flags[flg]
-            widgets.delete(0, tk.END)
-            widgets.insert(0, f"{flag_val:1b}")  # Hiển thị theo định dạng hex
-
-    def run_instructions(self, content):
-        # Lấy và thực thi lệnh
-        instruction = content.strip()  # Loại bỏ ký tự xuống dòng
-        result = self.cpu.execute_instruction(instruction)
-
-        # Hiển thị kết quả
-        self.print_to_console(result)
-
-        # Cập nhật thanh ghi
-        self.update_register_display()
-
-
-    def __init__(self):
-        super().__init__()
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.parent = parent
         # Tên của cửa sổ
         self.title("RUN")
         # Icon app
         self.iconbitmap("asm.ico")
+
+        # Khi đóng cửa sổ con, hiển thị lại cửa sổ chính
+        self.protocol("WM_DELETE_WINDOW", self.close_window)
 
         # Size của cửa sổ
         # self.geometry("600x700")
@@ -233,11 +235,11 @@ class run(tk.Tk):
         self.code_text.delete(1.0, "end")
 
         # In giá trị các thanh ghi
-        self.update_register_display()
-        self.update_flag_display()
+        self.display_register()
+        self.display_flag()
 
 
-        self.print_to_console("Welcome!!!")
+        self.screen_console["text"] = "\n" + "Welcome!!!" + "\n"
 
 
 class CLemu6808(tk.Tk):
@@ -317,10 +319,11 @@ class CLemu6808(tk.Tk):
         """Chạy code (ở đây ta chỉ in nội dung code, nhưng có thể thêm logic chạy code)."""
         if not self.check_unsaved_changes():
             return
-        code = self.code_area.get("1.0", "end-1c")
         global current_file_save
         current_file_save = self.current_file
-        windowRun = run()
+
+        self.withdraw() # Ẩn cửa sổ chính
+        windowRun = run(self)
         windowRun.mainloop()
 
     def create_top_buttons(self):

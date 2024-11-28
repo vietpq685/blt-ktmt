@@ -9,6 +9,8 @@ registers = {
     'BP': 0000, 'SI': 0000, 'DI': 0000, 'DS': 0000, 'ES': 0
 }
 
+error = None
+
 def reset():
     global registers
     registers = {
@@ -20,11 +22,28 @@ def reset():
     'BP': 0000, 'SI': 0000, 'DI': 0000, 'DS': 0000, 'ES': 0
 }
 
-def execute_instruction(instruction):
+def get_text(numb):
+    if numb == 0:
+        return "thực hiện thành công"
+    elif numb == 1:
+        return "lệnh không hợp lệ"
+    elif numb == 2:
+        return "thanh ghi không hợp lệ"
+    elif numb == 3:
+        return "lệnh \"" + cmd + "\" chưa được hỗ trợ"
+    elif numb == 4:
+        return f"Lỗi khi thực hiện lệnh: {str(error)}"
+    elif numb == 5:
+        return "Đã chạy hết các lệnh"
+
+cmd = None
+
+def execute(instruction):
+    global cmd
     # Phân tách mã lệnh và toán hạng
     parts = instruction.split()
     if len(parts) < 1:
-        return "Lệnh không hợp lệ"
+        return 1
     
     cmd = parts[0].upper()
     operands = parts[1:]
@@ -45,7 +64,7 @@ def execute_instruction(instruction):
                 else:
                     registers[reg] = int(value)
             else:
-                return "Thanh ghi không hợp lệ"
+                return 2
 
         elif cmd == "ADD":
             reg, value = operands
@@ -61,7 +80,7 @@ def execute_instruction(instruction):
                     else:
                         registers[reg] += int(value)
             else:
-                return "Thanh ghi không hợp lệ"
+                return 2
 
         elif cmd == "SUB":
             reg, value = operands
@@ -77,7 +96,7 @@ def execute_instruction(instruction):
                     else:
                         registers[reg] -= int(value)
             else:
-                return "Thanh ghi không hợp lệ"
+                return 2
 
         elif cmd == "INC":
             reg = operands[0]
@@ -87,7 +106,7 @@ def execute_instruction(instruction):
                 else:
                     registers[reg] += 1
             else:
-                return "Thanh ghi không hợp lệ"
+                return 2
 
         elif cmd == "DEC":
             reg = operands[0]
@@ -97,14 +116,14 @@ def execute_instruction(instruction):
                 else:
                     registers[reg] -= 1
             else:
-                return "Thanh ghi không hợp lệ"
+                return 2
         
         elif cmd == "MUL":
             reg = operands[0]
             if reg in registers and isinstance(registers[reg], dict):
                 registers["AX"]['L'] *= registers[reg]['L']
             else:
-                return "Thanh ghi không hợp lệ"
+                return 2
         
         elif cmd == "DIV":
             reg = operands[0]
@@ -112,15 +131,17 @@ def execute_instruction(instruction):
                 registers["DX"]['L'] = registers["AX"]['L'] % registers[reg]['L']
                 registers["AX"]['L'] = registers["AX"]['L'] // registers[reg]['L']
             else:
-                return "Thanh ghi không hợp lệ"
+                return 2
 
         else:
-            return "Lệnh không được hỗ trợ"
+            return 3
 
         # Tăng Instruction Pointer sau mỗi lệnh
         registers['IP'] += 1
 
-        return "Lệnh thực hiện thành công"
+        return 0
 
     except Exception as e:
-        return f"Lỗi khi thực hiện lệnh: {str(e)}"
+        global error
+        error = e
+        return 4
