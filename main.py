@@ -218,6 +218,7 @@ class run(tk.Tk):
 
         global current_file_save
         self.cpu = CPU
+        self.cpu.reset()
 
         # Định nghĩa khung bố cục
         # Vùng trên cùng chứa các nút chức năng

@@ -9,6 +9,17 @@ registers = {
     'BP': 0000, 'SI': 0000, 'DI': 0000, 'DS': 0000, 'ES': 0
 }
 
+def reset():
+    global registers
+    registers = {
+    'AX': {'H': 00, 'L': 00},
+    'BX': {'H': 00, 'L': 00},
+    'CX': {'H': 00, 'L': 00},
+    'DX': {'H': 00, 'L': 00},
+    'CS': 0000, 'IP': 0000, 'SS': 0000, 'SP': 0000,
+    'BP': 0000, 'SI': 0000, 'DI': 0000, 'DS': 0000, 'ES': 0
+}
+
 def execute_instruction(instruction):
     # Phân tách mã lệnh và toán hạng
     parts = instruction.split()
